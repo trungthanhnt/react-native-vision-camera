@@ -83,14 +83,12 @@ buildscript {
     classpath 'de.undercouch:gradle-download-task:4.1.2'
     // noinspection DifferentKotlinGradleVersion
     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    classpath "org.jetbrains.kotlin:kotlin-android-extensions:$kotlin_version"
   }
 }
 
 apply plugin: 'com.android.library'
 apply plugin: 'de.undercouch.download'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 
 def getExtOrDefault(name) {
   return rootProject.ext.has(name) ? rootProject.ext.get(name) : project.properties['VisionCamera_' + name]
@@ -112,8 +110,8 @@ def resolveBuildType() {
 
 // plugin.js file only exists since REA v2.
 def hasReanimated2 = file("${nodeModules}/react-native-reanimated/plugin.js").exists()
-def disableFrameProcessors = rootProject.ext.has("disableFrameProcessors") ? rootProject.ext.get("disableFrameProcessors").asBoolean() : false
-def ENABLE_FRAME_PROCESSORS = hasReanimated2 && !disableFrameProcessors
+def disableFrameProcessors = true
+def ENABLE_FRAME_PROCESSORS = false
 
 if (ENABLE_FRAME_PROCESSORS) {
   logger.warn("VisionCamera: Frame Processors are enabled! Building C++ part...")
@@ -123,6 +121,10 @@ if (ENABLE_FRAME_PROCESSORS) {
   } else if (!hasReanimated2) {
     logger.warn("VisionCamera: Frame Processors are disabled because REA v2 does not exist. C++ part will not be built.")
   }
+}
+
+if (isNewArchitectureEnabled()) {
+    apply plugin: "com.facebook.react"
 }
 
 android {
@@ -155,9 +157,6 @@ android {
     }
   }
 
-  dexOptions {
-    javaMaxHeapSize "4g"
-  }
 
   if (ENABLE_FRAME_PROCESSORS) {
     externalNativeBuild {
@@ -189,6 +188,10 @@ android {
       minifyEnabled false
     }
   }
+  
+  buildFeatures {
+    viewBinding = true
+  }
 
   lintOptions {
     disable 'GradleCompatible'
@@ -202,6 +205,20 @@ android {
     extractHeaders
     extractJNI
   }
+
+    sourceSets {
+        main {
+            if (isNewArchitectureEnabled()) {
+                java.srcDirs += [
+                        "src/newarch",
+                        // This is needed to build Kotlin project with NewArch enabled
+                        "${project.buildDir}/generated/source/codegen/java"
+                ]
+            } else {
+                java.srcDirs += ["src/oldarch"]
+            }
+        }
+    }
 }
 
 repositories {
@@ -635,4 +652,12 @@ if (ENABLE_FRAME_PROCESSORS) {
       }
     }
   }
+}
+
+if (isNewArchitectureEnabled()) {
+    react {
+        jsRootDir = file("../src/")
+        libraryName = "CameraModule"
+        codegenJavaPackageName = "com.mrousavy.camera"
+    }
 }
